@@ -20,3 +20,22 @@
 - 从 git 跟踪中移除 `data/` 文件夹（`git rm -r --cached data/`），本地文件保留
 - 更换远程仓库地址：`git@github.com:kimanki/CAROTS.git` -> `git@github.com:LU-0627/RACAROTS0712.git`
 - 提交并推送至新仓库 `master` 分支
+
+---
+
+## 2026-07-12 04:18 - 同步更新至 RACAROTS0712 仓库
+
+### 操作记录
+
+将项目最新更改提交并推送到 `git@github.com:LU-0627/RACAROTS0712.git`。
+
+本次提交包含 56 个文件变更（2681 行新增，1593 行删除），主要内容：
+- 修改了 `config.py`、`datasets/build.py`、`datasets/synthetic_regime_delay.py` 等核心代码
+- 修改了 `models/rd_carots/` 下多个模块（augmentors、model_bank、loss_rd_carots、modeling_rd_carots、scorer_rd_carots、trainer_rd_carots）
+- 新增 `models/rd_carots/result_writer.py`
+- 新增多个测试文件（test_cross_regime_mismatch、test_devices、test_guarded_update 等）
+- 新增文档（ACCEPTANCE_REPORT.md、FINAL_ACCEPTANCE.md、VALIDATION_REPORT.md 等）
+- 修改了 `scripts/server/` 下多个脚本
+- 新增 `tools/functional_delivery_audit.py`
+
+提交哈希：`80898e9`
