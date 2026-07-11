@@ -39,3 +39,18 @@
 - 新增 `tools/functional_delivery_audit.py`
 
 提交哈希：`80898e9`
+
+---
+
+## 2026-07-12 04:32 - 同步 GPU 服务器部署相关更新
+
+### 操作记录
+
+将项目最新更改提交并推送到 `git@github.com:LU-0627/RACAROTS0712.git`。
+
+本次提交包含 9 个文件变更（445 行新增，23 行删除），主要内容：
+- 修改 `models/build.py`、`models/rd_carots/modeling_rd_carots.py`、`run_rd_carots.py`、`scripts/server/00_check_environment.sh`
+- 新增 `GPU_SERVER_DELIVERY_FINAL.md`、`GPU_SERVER_DEPLOYMENT_CRITICAL_FIXES.md`、`HARDBLOCK_FIXES_SUMMARY.txt`
+- 新增 `scripts/server/06_run_synthetic_gpu_smoke.sh`、`scripts/server/RUN_ALL_SERVER_GPU.sh`
+
+提交哈希：`730843d`
