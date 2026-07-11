@@ -12,12 +12,18 @@ def build_model(cfg):
         "TIMESNET": TimesNet,
     }
 
+    # RDCAROTS models
+    if model_name in ["RDCAROTS", "RDCAROTS-no-regime", "RDCAROTS-no-delay-negative", "RDCAROTS-single-prototype"]:
+        from models.rd_carots.modeling_rd_carots import RDCAROTS
+        model_mapping[model_name] = RDCAROTS
+
     if model_name in model_mapping:
         model = model_mapping[model_name](cfg)
     else:
         raise ValueError(f"Unknown model name: {model_name}")
 
-    if torch.cuda.is_available():
-        model = model.cuda()
+    # Device handling - use device parameter instead of hardcoded cuda()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = model.to(device)
 
     return model

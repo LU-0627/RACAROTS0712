@@ -1,0 +1,39 @@
+# IO Schema for WADI Dataset (Water Distribution)
+
+mode: explicit_io
+description: "WADI water distribution network - actuators and sensors"
+
+# Input variables (actuators, pumps, valves)
+# TEMPLATE - must be verified against actual WADI column names
+input_indices: [0, 1, 2, 5, 6, 10, 11, 15, 16, 20, 21, 25, 26, 30, 31, 35, 36, 40, 41, 45, 46, 50, 51, 55, 56, 60, 61, 65, 66, 70]
+
+# Output variables (sensors, measurements)
+output_indices: [3, 4, 7, 8, 9, 12, 13, 14, 17, 18, 19, 22, 23, 24, 27, 28, 29, 32, 33, 34, 37, 38, 39, 42, 43, 44, 47, 48, 49, 52, 53, 54, 57, 58, 59, 62, 63, 64, 67, 68, 69, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123]
+
+# Ignored: timestamp and label columns
+ignored_indices: []
+
+notes: |
+  WADI dataset variable count depends on preprocessing.
+  Common configurations:
+  - WADI.A2: ~127 variables after removing Attack LABLE column
+
+  WARNING: This is a TEMPLATE that assumes ~124 variables.
+
+  IMPORTANT: Before using this schema:
+  1. Load WADI CSV file
+  2. Check actual number of variables
+  3. Identify column names
+  4. Classify as inputs (actuators) vs outputs (sensors)
+  5. Update this file accordingly
+
+  Expected naming patterns:
+  - *_P (pumps) → inputs
+  - *_V (valves) → inputs
+  - *_FIT (flow) → outputs
+  - *_LIT (level) → outputs
+  - *_AIT (analysis) → outputs
+  - *_PIT (pressure) → outputs
+
+  Script to generate correct schema:
+    python scripts/server/02_check_data.sh --dataset WADI --generate-io-schema

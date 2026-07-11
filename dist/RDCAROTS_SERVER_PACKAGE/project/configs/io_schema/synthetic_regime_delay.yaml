@@ -1,0 +1,22 @@
+# IO Schema for Synthetic Regime-Delay Dataset
+
+mode: explicit_io
+description: "3-regime linear system with input delays and regime switching"
+
+# First 20 variables are inputs (control signals)
+input_indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+# Next 30 variables are outputs (sensor measurements)
+output_indices: [20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]
+
+# No ignored variables
+ignored_indices: []
+
+notes: |
+  Synthetic data with:
+  - 20 input variables (exogenous control signals)
+  - 30 output variables (system response)
+  - 3 normal operating regimes with different dynamics
+  - Input delays varying by regime (τ=0, τ=1, τ=2)
+  - Regime switches at known intervals
+  - Anomalies: relation_break, delay_break, cross_regime_mismatch

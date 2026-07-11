@@ -1,0 +1,15 @@
+MODEL:
+  NAME: "RDCAROTS"
+
+DATA:
+  BASE_DIR: "${DATA_ROOT}"
+  NAME: "SWaT"
+  N_VAR: 51
+
+RDCAROTS:
+  IO_SCHEMA_PATH: "configs/io_schema/SWaT.yaml"
+  N_INPUTS: 21
+  N_OUTPUTS: 30
+
+SOLVER:
+  MAX_EPOCH: 50

@@ -271,7 +271,11 @@ def build_trainer(cfg, model):
         "TIMESNET": "models.timesnet.trainer_timesnet.TimesnetTrainer",
     }
 
+    # RDCAROTS trainers
     model_name = cfg.MODEL.NAME
+    if model_name in ["RDCAROTS", "RDCAROTS-no-regime", "RDCAROTS-no-delay-negative", "RDCAROTS-single-prototype"]:
+        trainer_classes[model_name] = "models.rd_carots.trainer_rd_carots.RDCAROTSTrainer"
+
     if model_name not in trainer_classes:
         raise ValueError(f"Unknown model name: {model_name}")
 
@@ -282,9 +286,12 @@ def build_trainer(cfg, model):
     return trainer_class(cfg, model)
 
 
-def prepare_inputs(inputs):
-    # move data to the current GPU
+def prepare_inputs(inputs, device=None):
+    # move data to the appropriate device
+    if device is None:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     if isinstance(inputs, torch.Tensor):
-        return inputs.cuda()
+        return inputs.to(device)
     elif isinstance(inputs, (tuple, list)):
-        return type(inputs)(prepare_inputs(v) for v in inputs)
+        return type(inputs)(prepare_inputs(v, device) for v in inputs)

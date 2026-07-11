@@ -1,0 +1,58 @@
+# RDCAROTS 最终交付报告
+
+## 1. 实际新增文件数量: 82
+
+## 2. 实际修改文件数量: 2
+
+## 3. 修改的原CAROTS文件列表
+- models/build.py
+- trainer.py
+
+## 4. run_rd_carots.py路径
+run_rd_carots.py
+
+## 5. configs/rd_carots目录
+configs/rd_carots/ (7个配置文件)
+
+## 6. 测试文件数量
+11
+
+## 7. 服务器脚本数量
+15
+
+## 8. 打包脚本路径
+tools/build_server_package.py
+
+## 9. ZIP文件是否实际生成
+是
+
+## 10. ZIP路径
+dist/RDCAROTS_SERVER_PACKAGE.zip
+
+## 11. ZIP SHA256
+ccd168098c8e0c9dc6e1e93bb88f265cba2e78db75fb84e15699eda928414493
+
+## 12. 离线wheel是否已经填充
+否（需要Linux机器执行）
+
+## 13. 第一条服务器命令
+```bash
+unzip RDCAROTS_SERVER_PACKAGE.zip
+cd RDCAROTS_SERVER_PACKAGE/project
+export PROJECT_ROOT="$(pwd)"
+export DATA_ROOT="/path/to/data"
+export OUTPUT_ROOT="$PROJECT_ROOT/results/rd_carots"
+export PYTHON_BIN="python"
+export CUDA_VISIBLE_DEVICES="0"
+bash scripts/server/00_check_environment.sh
+```
+
+## 14. 尚未在服务器验证的内容
+- 未在本地执行代码
+- 未运行pytest
+- 未执行训练
+- 未测试GPU
+- 未运行SWaT/WADI实验
+- 未生成性能指标
+- 未与CAROTS比较
+- config.py需手动添加RDCAROTS配置段

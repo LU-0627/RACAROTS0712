@@ -1,0 +1,15 @@
+MODEL:
+  NAME: "RDCAROTS-no-regime"
+
+# Inherits all settings from synthetic.yaml
+# Only disable regime-specific components
+
+RDCAROTS:
+  DELAYMIX:
+    N_REGIMES: 1  # Single regime only
+
+  LOSS:
+    USE_REGIME_WEIGHTING: False  # No regime weighting in loss
+
+  PROTOTYPE_UPDATE_MOMENTUM: 0.1
+  PROTOTYPE_MIN_CONFIDENCE: 0.5

@@ -1,0 +1,15 @@
+MODEL:
+  NAME: "RDCAROTS"
+
+DATA:
+  BASE_DIR: "${DATA_ROOT}"
+  NAME: "WADI"
+  N_VAR: 127
+
+RDCAROTS:
+  IO_SCHEMA_PATH: "configs/io_schema/WADI.yaml"
+  N_INPUTS: 30
+  N_OUTPUTS: 97
+
+SOLVER:
+  MAX_EPOCH: 50

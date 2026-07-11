@@ -1,0 +1,11 @@
+MODEL:
+  NAME: "RDCAROTS-no-delay-negative"
+
+# Disable delay_break in negative augmentation
+
+RDCAROTS:
+  NEGATIVE_AUGMENTOR:
+    ENABLE: True
+    RELATION_BREAK_PROB: 0.5
+    DELAY_BREAK_PROB: 0.0  # Disabled
+    CROSS_REGIME_PROB: 0.5

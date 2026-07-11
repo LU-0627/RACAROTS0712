@@ -1,0 +1,11 @@
+MODEL:
+  NAME: "RDCAROTS-single-prototype"
+
+# Use single prototype instead of multi-regime
+
+RDCAROTS:
+  DELAYMIX:
+    N_REGIMES: 1
+
+  PROTOTYPE_UPDATE_MOMENTUM: 0.1
+  PROTOTYPE_MIN_CONFIDENCE: 0.5
