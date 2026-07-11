@@ -255,7 +255,7 @@ class SWaTSegLoader(TSDataset):
 class WADISegLoader(TSDataset):
     def __init__(self, cfg, split):
         super(WADISegLoader, self).__init__(cfg, split)
-    
+
     def _load_data(self):
         if self.downsample_rate > 1:
             try:
@@ -271,24 +271,47 @@ class WADISegLoader(TSDataset):
         test_df = test_df.iloc[:, 3:].astype(np.float32)
 
         self.var_names = list(train_df.columns)
-        
+
         test_labels = test_df['Attack LABLE (1:No Attack, -1:Attack)'].values
         test_labels = (test_labels == -1.0).astype(int)
         test = test_df.drop(columns='Attack LABLE (1:No Attack, -1:Attack)').values
-        
+
         train = train_df.values
         train_labels = np.zeros(train.shape[0])
-        
+
         if self.train_ratio < 1.0:
             train, val, train_labels, val_labels = self._split_train_val(train, train_labels)
         else:
             val, val_labels = test.copy(), test_labels.copy()
-        
+
         if self.downsample_rate > 1:
             train, val, test = downsample(train, self.downsample_rate), downsample(val, self.downsample_rate), downsample(test, self.downsample_rate)
             train_labels, val_labels, test_labels = downsample(train_labels, self.downsample_rate), downsample(val_labels, self.downsample_rate), downsample(test_labels, self.downsample_rate)
             self._save_downsampled_data(train, val, test, train_labels, val_labels, test_labels)
-        
+
+        return train, val, test, train_labels, val_labels, test_labels
+
+
+class SyntheticRegimeDelayLoader(TSDataset):
+    def __init__(self, cfg, split):
+        super(SyntheticRegimeDelayLoader, self).__init__(cfg, split)
+
+    def _load_data(self):
+        """Load synthetic regime-delay dataset."""
+        # Load from npz files
+        train_data = np.load(os.path.join(self.data_dir, 'train.npz'))
+        val_data = np.load(os.path.join(self.data_dir, 'val.npz'))
+        test_data = np.load(os.path.join(self.data_dir, 'test.npz'))
+
+        # Concatenate inputs and outputs: [u, x]
+        train = np.concatenate([train_data['u'], train_data['x']], axis=1)
+        val = np.concatenate([val_data['u'], val_data['x']], axis=1)
+        test = np.concatenate([test_data['u'], test_data['x']], axis=1)
+
+        train_labels = train_data['labels']
+        val_labels = val_data['labels']
+        test_labels = test_data['labels']
+
         return train, val, test, train_labels, val_labels, test_labels
 
 
@@ -327,34 +350,6 @@ class VARSegLoader(TSDataset):
         self.data_dir = os.path.join(self.cfg.DATA.BASE_DIR, 'VAR')
         train = np.load(os.path.join(self.data_dir, 'train.npy'))
         train_labels = np.zeros(train.shape[0])
-        
+
         test = np.load(os.path.join(self.data_dir, f'test_{self.anomaly_type}_outliers_factor{self.factor}.npy'))
-
-        test_labels = np.load(os.path.join(self.data_dir, f'test_{self.anomaly_type}_outliers_factor{self.factor}_labels.npy'))
-        
-        if self.train_ratio < 1.0:
-            train, val, train_labels, val_labels = self._split_train_val(train, train_labels)
-        else:
-            val, val_labels = test.copy(), test_labels.copy()
-        
-        return train, val, test, train_labels, val_labels, test_labels
-
-
-def build_dataset(cfg, split):
-    dataset_name = cfg.DATA.NAME
-
-    dataset_loaders = {
-        "SMD": SMDSegLoader,
-        "MSL": MSLSegLoader,
-        "PSM": PSMSegLoader,
-        "SWaT": SWaTSegLoader,
-        "WADI": WADISegLoader,
-        "Lorenz96": Lorenz96SegLoader,
-        "VAR": VARSegLoader,
-    }
-
-    for key in dataset_loaders:
-        if key in dataset_name:
-            return dataset_loaders[key](cfg, split)
-
-    raise ValueError(f"Unknown dataset name: {dataset_name}")
+        test_labels = np.load(os.path.join(self.data_dir, f"test_{self.anomaly_type}_outliers_factor{self.factor}_labels.npy"))

@@ -113,12 +113,10 @@ class RegimeDelaySystemGenerator:
             inputs, outputs, regime_labels
         """
         if regime_switches is None:
-            # Default: switch every length//3
-            regime_switches = [
-                (0, 0),
-                (length // 3, 1),
-                (2 * length // 3, 2)
-            ]
+            # Default: switch every length//3, ensure valid regime IDs
+            n_switches = min(3, self.n_regimes)
+            regime_switches = [(i * length // n_switches, i % self.n_regimes)
+                             for i in range(n_switches)]
 
         # Generate inputs
         inputs = np.random.randn(length, self.n_inputs) * 0.5
@@ -127,7 +125,7 @@ class RegimeDelaySystemGenerator:
         regime_labels = np.zeros(length, dtype=int)
 
         # Simulate with regime switches
-        current_regime = regime_switches[0][1]
+        current_regime = regime_switches[0][1] if len(regime_switches) > 0 else 0
         switch_idx = 1
 
         for t in range(length):
@@ -136,6 +134,8 @@ class RegimeDelaySystemGenerator:
                 current_regime = regime_switches[switch_idx][1]
                 switch_idx += 1
 
+            # Ensure regime ID is valid
+            current_regime = min(current_regime, self.n_regimes - 1)
             regime_labels[t] = current_regime
 
             # Simulate one step

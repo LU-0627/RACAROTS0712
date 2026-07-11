@@ -1,34 +1,29 @@
 #!/usr/bin/env bash
-# Run full synthetic experiments
-
 set -euo pipefail
 
-PROJECT_ROOT="${PROJECT_ROOT:-.}"
-DATA_ROOT="${DATA_ROOT:-data}"
+echo "=== Running Full Synthetic Experiment ==="
+
 OUTPUT_ROOT="${OUTPUT_ROOT:-results/rd_carots}"
-PYTHON_BIN="${PYTHON_BIN:-python}"
-SEED="${SEED:-0}"
+DATA_ROOT="${DATA_ROOT:-data}"
 
-echo "Running full synthetic experiments..."
+for seed in 0 1 2; do
+    echo "Training seed $seed"
+    
+    python run_rd_carots.py \
+        --config configs/rd_carots/synthetic.yaml \
+        --mode train \
+        --model RDCAROTS \
+        --seed $seed \
+        --data-root "$DATA_ROOT" \
+        --output-root "$OUTPUT_ROOT/synthetic/seed_$seed" || { echo "Training failed for seed $seed"; exit 1; }
+    
+    python run_rd_carots.py \
+        --config configs/rd_carots/synthetic.yaml \
+        --mode frozen \
+        --model RDCAROTS \
+        --seed $seed \
+        --data-root "$DATA_ROOT" \
+        --output-root "$OUTPUT_ROOT/synthetic/seed_$seed" || { echo "Testing failed for seed $seed"; exit 1; }
+done
 
-# CAROTS baseline
-echo "Training CAROTS..."
-$PYTHON_BIN run_rd_carots.py \
-    --config configs/rd_carots/synthetic.yaml \
-    --model CAROTS \
-    --mode train \
-    --seed $SEED \
-    --data-root "$DATA_ROOT" \
-    --output-root "$OUTPUT_ROOT/synthetic/carots"
-
-# RDCAROTS full
-echo "Training RDCAROTS..."
-$PYTHON_BIN run_rd_carots.py \
-    --config configs/rd_carots/synthetic.yaml \
-    --model RDCAROTS \
-    --mode train \
-    --seed $SEED \
-    --data-root "$DATA_ROOT" \
-    --output-root "$OUTPUT_ROOT/synthetic/rdcarots"
-
-echo "✓ Full synthetic experiments complete."
+echo "Full synthetic experiments complete"

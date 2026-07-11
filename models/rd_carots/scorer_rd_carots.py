@@ -209,11 +209,16 @@ class RDCAROTSScorer:
 
         # A_pred, A_delay, A_uncertainty: Require model bank
         if self.model_bank is not None and self.model_bank.is_initialized:
-            # Split x into inputs and outputs (simplified: assume half-half)
-            n_vars = x.shape[-1]
-            n_inputs = n_vars // 2
-            outputs = x[:, :, n_inputs:]
-            inputs = x[:, :, :n_inputs]
+            # Get IO schema
+            from .io_schema import load_io_schema, split_io_variables
+            from pathlib import Path
+            io_schema_path = Path(self.cfg.RDCAROTS.IO_SCHEMA_PATH)
+            io_schema = load_io_schema(io_schema_path, n_variables=x.shape[-1])
+
+            # Split using IO schema
+            inputs_np, outputs_np = split_io_variables(x.cpu().numpy(), io_schema)
+            inputs = torch.from_numpy(inputs_np).to(x.device)
+            outputs = torch.from_numpy(outputs_np).to(x.device)
 
             # Regime inference
             regime_results = self.model_bank.predict(outputs, inputs)
@@ -230,8 +235,11 @@ class RDCAROTSScorer:
                 score_uncertainty = -(regime_probs * torch.log(regime_probs + 1e-12)).sum(dim=1)
                 score_dict['uncertainty'] = score_uncertainty
 
-                # A_delay: Placeholder (would need Markov comparison)
-                score_dict['delay'] = torch.zeros_like(score_pred)
+                # A_delay: Markov parameter-based delay score
+                score_delay = self._compute_delay_score(
+                    inputs, outputs, regime_results, io_schema
+                )
+                score_dict['delay'] = score_delay
 
         return score_dict
 
@@ -249,6 +257,99 @@ class RDCAROTSScorer:
             'score_normalizers': self.score_normalizers,
             'is_fitted': self.is_fitted
         }
+
+    def _compute_delay_score(
+        self,
+        inputs: torch.Tensor,
+        outputs: torch.Tensor,
+        regime_results: Dict,
+        io_schema
+    ) -> torch.Tensor:
+        """
+        Compute delay-aware anomaly score.
+
+        Combines:
+        1. Delay position error: difference in effective delay
+        2. Markov response error: mismatch in lagged response patterns
+
+        Args:
+            inputs: (batch_size, window_size, n_inputs)
+            outputs: (batch_size, window_size, n_outputs)
+            regime_results: Results from model_bank.predict
+            io_schema: IOSchema object
+
+        Returns:
+            delay_scores: (batch_size,) delay anomaly scores
+        """
+        batch_size = inputs.shape[0]
+        device = inputs.device
+
+        regime_probs = regime_results['regime_probs']
+        best_regimes = regime_results['best_regime']
+
+        delay_scores = torch.zeros(batch_size, device=device)
+
+        # Get regime models
+        regime_models = self.model_bank.regime_models
+
+        for b in range(batch_size):
+            regime_id = best_regimes[b].item()
+            regime_model = regime_models[regime_id]
+
+            if regime_model is None:
+                continue
+
+            # Get expected delay for this regime
+            expected_delay = regime_model.markov_params.effective_delay
+            markov_seq = regime_model.markov_params.markov_sequence  # (L, n_outputs, n_inputs)
+
+            # Extract window data
+            u_window = inputs[b].cpu().numpy()  # (T, n_inputs)
+            y_window = outputs[b].cpu().numpy()  # (T, n_outputs)
+            T = u_window.shape[0]
+
+            # Compute Markov-based response error
+            markov_error = 0.0
+            n_valid = 0
+
+            for lag in range(min(expected_delay + 3, len(markov_seq))):
+                if lag >= T:
+                    break
+
+                # Expected response at this lag
+                H_lag = markov_seq[lag]  # (n_outputs, n_inputs)
+
+                # Compute expected vs actual response
+                for t in range(lag, T):
+                    if t - lag >= 0:
+                        u_lagged = u_window[t - lag]  # (n_inputs,)
+                        y_expected = H_lag @ u_lagged  # (n_outputs,)
+                        y_actual = y_window[t]  # (n_outputs,)
+
+                        # Residual
+                        residual = np.linalg.norm(y_actual - y_expected)
+                        markov_error += residual
+                        n_valid += 1
+
+            if n_valid > 0:
+                markov_error /= n_valid
+
+            # Delay position error: check if responses align with expected delay
+            delay_position_error = 0.0
+            if expected_delay < T:
+                H_main = markov_seq[expected_delay]  # (n_outputs, n_inputs)
+                for t in range(expected_delay, T):
+                    u_delayed = u_window[t - expected_delay]
+                    y_expected = H_main @ u_delayed
+                    y_actual = y_window[t]
+                    delay_position_error += np.linalg.norm(y_actual - y_expected)
+
+                delay_position_error /= (T - expected_delay)
+
+            # Combined delay score
+            delay_scores[b] = markov_error + delay_position_error
+
+        return delay_scores
 
     def load_state_dict(self, state_dict: Dict):
         """Load scorer state."""

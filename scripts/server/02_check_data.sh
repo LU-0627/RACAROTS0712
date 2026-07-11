@@ -1,46 +1,20 @@
 #!/usr/bin/env bash
-# Check data availability
-
 set -euo pipefail
+
+echo "=== Checking Data ==="
 
 DATA_ROOT="${DATA_ROOT:-data}"
 
-echo "========================================="
-echo "Data Availability Check"
-echo "========================================="
-echo ""
-
 echo "Data root: $DATA_ROOT"
-echo ""
 
-# Synthetic
-echo "1. Synthetic data:"
-if [ -d "$DATA_ROOT/synthetic_regime_delay" ]; then
-    echo "  ✓ Directory exists"
-    ls -lh "$DATA_ROOT/synthetic_regime_delay" 2>/dev/null || true
-else
-    echo "  ✗ NOT FOUND (will be generated)"
-fi
-echo ""
+# Check if data directories exist
+for dataset in SWaT WADI synthetic_regime_delay; do
+    if [ -d "$DATA_ROOT/$dataset" ]; then
+        echo "✓ $dataset directory exists"
+        ls -lh "$DATA_ROOT/$dataset" | head -5
+    else
+        echo "✗ $dataset directory not found"
+    fi
+done
 
-# SWaT
-echo "2. SWaT data:"
-if [ -d "$DATA_ROOT/SWaT" ]; then
-    echo "  ✓ Directory exists"
-    ls -lh "$DATA_ROOT/SWaT"/*.csv 2>/dev/null || echo "  No CSV files found"
-else
-    echo "  ✗ NOT FOUND"
-fi
-echo ""
-
-# WADI
-echo "3. WADI data:"
-if [ -d "$DATA_ROOT/WADI" ]; then
-    echo "  ✓ Directory exists"
-    ls -lh "$DATA_ROOT/WADI"/*.csv 2>/dev/null || echo "  No CSV files found"
-else
-    echo "  ✗ NOT FOUND"
-fi
-echo ""
-
-echo "Data check complete."
+echo "Data check complete"

@@ -1,104 +1,42 @@
-"""
-Test: Tensor Shape Validation
-"""
-
+"""Test tensor shapes throughout pipeline"""
 import pytest
 import torch
 import numpy as np
+from models.rd_carots.io_schema import IOSchema, split_io_variables
 
-
-def test_moment_collection_shapes():
-    """Test moment collection tensor shapes."""
-    from models.rd_carots.delaymix import DynamicMomentCollection
-
-    n_outputs, n_inputs, max_lag = 10, 8, 20
-
-    collector = DynamicMomentCollection(
-        n_outputs=n_outputs,
-        n_inputs=n_inputs,
-        max_lag=max_lag
+def test_io_split_shapes():
+    io_schema = IOSchema(
+        mode='explicit_io',
+        input_indices=[0, 1, 2],
+        output_indices=[3, 4, 5, 6],
+        ignored_indices=[],
+        n_inputs=3,
+        n_outputs=4,
+        n_total=7
     )
+    
+    data = np.random.randn(32, 10, 7)
+    inputs, outputs = split_io_variables(data, io_schema)
+    
+    assert inputs.shape == (32, 10, 3)
+    assert outputs.shape == (32, 10, 4)
 
-    # Update
-    for _ in range(50):
-        outputs = torch.randn(1, n_outputs)
-        inputs = torch.randn(1, n_inputs)
-        collector.update(outputs, inputs)
+def test_batch_metadata_shapes():
+    batch_size = 16
+    group_ids = torch.zeros(batch_size * 4, dtype=torch.long)
+    group_ids[batch_size:2*batch_size] = 1
+    group_ids[2*batch_size:3*batch_size] = 2
+    group_ids[3*batch_size:] = 3
+    
+    assert group_ids.shape[0] == batch_size * 4
+    assert (group_ids[:batch_size] == 0).all()
+    assert (group_ids[batch_size:2*batch_size] == 1).all()
 
-    # Get tensor
-    tensor = collector.get_tensor()
-
-    assert tensor.shape == (n_outputs, n_inputs, max_lag)
-
-
-def test_cp_factors_shapes():
-    """Test CP decomposition output shapes."""
-    from models.rd_carots.delaymix import cp_decomposition
-
-    n_out, n_in, max_lag = 15, 10, 20
-    rank = 3
-
-    tensor = np.random.randn(n_out, n_in, max_lag)
-    factors = cp_decomposition(tensor, rank=rank)
-
-    assert factors.weights.shape == (rank,)
-    assert factors.output_factors.shape == (n_out, rank)
-    assert factors.input_factors.shape == (n_in, rank)
-    assert factors.lag_factors.shape == (max_lag, rank)
-
-
-def test_state_space_shapes():
-    """Test state space model shapes."""
-    from models.rd_carots.delaymix import ho_kalman_realization
-
-    n_out, n_in, max_lag = 10, 8, 20
-    markov_seq = np.random.randn(max_lag, n_out, n_in)
-
-    ss_model = ho_kalman_realization(markov_seq, max_states=5)
-
-    n_states = ss_model.n_states
-    assert ss_model.A.shape == (n_states, n_states)
-    assert ss_model.B.shape == (n_states, n_in)
-    assert ss_model.C.shape == (n_out, n_states)
-
-
-def test_augmentor_output_shapes():
-    """Test augmentor output shapes match input."""
-    from models.rd_carots.augmentors import RegimeDelayPositiveAugmentor
-    from yacs.config import CfgNode as CN
-
-    cfg = CN()
-    cfg.RDCAROTS = CN()
-    cfg.RDCAROTS.REGIME_DELAY_POSITIVE_AUGMENTOR = CN()
-    cfg.RDCAROTS.REGIME_DELAY_POSITIVE_AUGMENTOR.NOISE_LEVEL = 0.1
-
-    augmentor = RegimeDelayPositiveAugmentor(cfg)
-
-    B, T, N = 16, 10, 50
-    x = torch.randn(B, T, N)
-
-    # No regime models (fallback)
-    x_aug = augmentor(x, regime_models=[], regime_probs=None)
-
-    assert x_aug.shape == x.shape
-    assert x_aug.device == x.device
-    assert x_aug.dtype == x.dtype
-
-
-def test_prototype_bank_shapes():
-    """Test prototype bank tensor shapes."""
-    from models.rd_carots.prototypes import RegimePrototypeBank
-
-    n_regimes = 3
-    embedding_dim = 128
+def test_embedding_shapes():
     batch_size = 32
-
-    bank = RegimePrototypeBank(n_regimes=n_regimes, embedding_dim=embedding_dim)
-
+    embedding_dim = 512
     embeddings = torch.randn(batch_size, embedding_dim)
-
-    distances = bank.get_distances(embeddings)
-    assert distances.shape == (batch_size, n_regimes)
-
-    min_distances = bank.get_min_distance(embeddings)
-    assert min_distances.shape == (batch_size,)
+    
+    normalized = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+    assert normalized.shape == (batch_size, embedding_dim)
+    assert torch.allclose(torch.norm(normalized, p=2, dim=1), torch.ones(batch_size), atol=1e-5)

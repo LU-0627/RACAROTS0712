@@ -1,49 +1,21 @@
 #!/usr/bin/env bash
-# Check server environment
-
 set -euo pipefail
 
-echo "========================================="
-echo "RDCAROTS Server Environment Check"
-echo "========================================="
-echo ""
+echo "=== Checking Environment ==="
 
-# Python version
-echo "1. Python version:"
-python --version || echo "  ERROR: Python not found"
-echo ""
+# Check Python
+python --version || { echo "Python not found"; exit 1; }
 
-# PyTorch
-echo "2. PyTorch:"
-python -c "import torch; print(f'  Version: {torch.__version__}')" || echo "  ERROR: PyTorch not found"
-python -c "import torch; print(f'  CUDA available: {torch.cuda.is_available()}')" || true
-python -c "import torch; print(f'  CUDA version: {torch.version.cuda}')" 2>/dev/null || true
-python -c "import torch; print(f'  Device count: {torch.cuda.device_count()}')" 2>/dev/null || true
-echo ""
+# Check required packages
+python -c "import torch; print(f'PyTorch: {torch.__version__}')" || { echo "PyTorch not installed"; exit 1; }
+python -c "import numpy; print(f'NumPy: {numpy.__version__}')" || { echo "NumPy not installed"; exit 1; }
+python -c "import yaml; print('PyYAML installed')" || { echo "PyYAML not installed"; exit 1; }
+python -c "import sklearn; print('scikit-learn installed')" || { echo "scikit-learn not installed"; exit 1; }
 
-# Other dependencies
-echo "3. Dependencies:"
-for pkg in numpy scipy sklearn tensorly pandas yaml tqdm yacs; do
-    python -c "import $pkg; print(f'  $pkg: OK')" 2>/dev/null || echo "  $pkg: MISSING"
-done
-echo ""
+# Check CUDA
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
 
-# Environment variables
-echo "4. Environment variables:"
-echo "  PROJECT_ROOT: ${PROJECT_ROOT:-NOT SET}"
-echo "  DATA_ROOT: ${DATA_ROOT:-NOT SET}"
-echo "  OUTPUT_ROOT: ${OUTPUT_ROOT:-NOT SET}"
-echo "  CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-NOT SET}"
-echo ""
+# Check disk space
+df -h . || echo "Could not check disk space"
 
-# Disk space
-echo "5. Disk space:"
-df -h . | tail -1
-echo ""
-
-# Memory
-echo "6. Memory:"
-free -h | grep Mem || echo "  free command not available"
-echo ""
-
-echo "Environment check complete."
+echo "Environment check passed"

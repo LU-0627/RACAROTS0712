@@ -39,7 +39,8 @@ class RegimeDelayPositiveAugmentor(nn.Module):
         self,
         x: torch.Tensor,
         regime_models: List[StateSpaceModel],
-        regime_probs: Optional[torch.Tensor] = None
+        regime_probs: Optional[torch.Tensor] = None,
+        io_schema = None
     ) -> torch.Tensor:
         """
         Generate positive augmentation.
@@ -48,6 +49,7 @@ class RegimeDelayPositiveAugmentor(nn.Module):
             x: Input windows (batch_size, window_size, n_variables)
             regime_models: List of regime state space models
             regime_probs: (batch_size, n_regimes) or None for uniform
+            io_schema: IOSchema object for variable splitting
 
         Returns:
             x_pos: Augmented samples (batch_size, window_size, n_variables)
@@ -59,6 +61,15 @@ class RegimeDelayPositiveAugmentor(nn.Module):
         batch_size = x.shape[0]
         x_pos = x.clone()
 
+        # Get IO schema
+        if io_schema is None:
+            from .io_schema import load_io_schema
+            io_schema_path = self.cfg.RDCAROTS.IO_SCHEMA_PATH
+            io_schema = load_io_schema(io_schema_path, n_variables=x.shape[-1])
+
+        input_indices = torch.tensor(io_schema.input_indices, dtype=torch.long, device=self.device)
+        output_indices = torch.tensor(io_schema.output_indices, dtype=torch.long, device=self.device)
+
         for b in range(batch_size):
             # Select regime
             if regime_probs is not None:
@@ -69,14 +80,9 @@ class RegimeDelayPositiveAugmentor(nn.Module):
             # Get state space model for this regime
             ss_model = regime_models[regime_id]
 
-            # Split into inputs and outputs (assuming IO schema available)
-            # For now, assume first half inputs, second half outputs
-            n_vars = x.shape[-1]
-            n_inputs = n_vars // 2
-            n_outputs = n_vars - n_inputs
-
-            u = x[b, :, :n_inputs].cpu().numpy()  # (T, n_inputs)
-            y_orig = x[b, :, n_inputs:].cpu().numpy()  # (T, n_outputs)
+            # Split using IO schema
+            u = x[b, :, input_indices].cpu().numpy()  # (T, n_inputs)
+            y_orig = x[b, :, output_indices].cpu().numpy()  # (T, n_outputs)
 
             # Perturb inputs slightly
             u_perturbed = u + np.random.randn(*u.shape) * self.noise_level
@@ -86,8 +92,8 @@ class RegimeDelayPositiveAugmentor(nn.Module):
                 y_new = self._simulate_regime(ss_model, u_perturbed)
 
                 # Update outputs in augmented sample
-                x_pos[b, :, n_inputs:] = torch.from_numpy(y_new).float().to(self.device)
-                x_pos[b, :, :n_inputs] = torch.from_numpy(u_perturbed).float().to(self.device)
+                x_pos[b, :, output_indices] = torch.from_numpy(y_new).float().to(self.device)
+                x_pos[b, :, input_indices] = torch.from_numpy(u_perturbed).float().to(self.device)
 
             except Exception as e:
                 # Fallback: keep original with small noise
@@ -142,7 +148,8 @@ class RegimeDelayNegativeAugmentor(nn.Module):
         x: torch.Tensor,
         regime_models: List[StateSpaceModel],
         regime_probs: Optional[torch.Tensor] = None,
-        causality_mtx: Optional[torch.Tensor] = None
+        causality_mtx: Optional[torch.Tensor] = None,
+        io_schema = None
     ) -> torch.Tensor:
         """
         Generate negative augmentation.
@@ -152,12 +159,19 @@ class RegimeDelayNegativeAugmentor(nn.Module):
             regime_models: List of regime state space models
             regime_probs: (batch_size, n_regimes) or None
             causality_mtx: (n_variables, n_variables) causal adjacency matrix
+            io_schema: IOSchema object for variable splitting
 
         Returns:
             x_neg: Negative samples (batch_size, window_size, n_variables)
         """
         batch_size = x.shape[0]
         x_neg = torch.zeros_like(x)
+
+        # Get IO schema
+        if io_schema is None:
+            from .io_schema import load_io_schema
+            io_schema_path = self.cfg.RDCAROTS.IO_SCHEMA_PATH
+            io_schema = load_io_schema(io_schema_path, n_variables=x.shape[-1])
 
         for b in range(batch_size):
             # Select strategy
@@ -169,9 +183,9 @@ class RegimeDelayNegativeAugmentor(nn.Module):
             if strategy == 'relation_break':
                 x_neg[b] = self._relation_break(x[b], causality_mtx)
             elif strategy == 'delay_break':
-                x_neg[b] = self._delay_break(x[b])
+                x_neg[b] = self._delay_break(x[b], io_schema)
             elif strategy == 'cross_regime':
-                x_neg[b] = self._cross_regime_mismatch(x[b], regime_models, regime_probs[b] if regime_probs is not None else None)
+                x_neg[b] = self._cross_regime_mismatch(x[b], regime_models, regime_probs[b] if regime_probs is not None else None, io_schema)
 
         return x_neg.detach()
 
@@ -198,37 +212,49 @@ class RegimeDelayNegativeAugmentor(nn.Module):
                 for var in affected_vars:
                     x_neg[:, var] += torch.randn_like(x_neg[:, var]) * 0.5
         else:
-            # Fallback: perturb random subset
-            n_perturb = random.randint(1, n_vars // 2)
+            # Fallback: perturb random subset (max half)
+            n_perturb = random.randint(1, max(1, n_vars // 3))
             vars_to_perturb = random.sample(range(n_vars), n_perturb)
             for var in vars_to_perturb:
                 x_neg[:, var] += torch.randn_like(x_neg[:, var]) * 0.5
 
         return x_neg
 
-    def _delay_break(self, x: torch.Tensor) -> torch.Tensor:
-        """Alter input-output delay by shifting."""
+    def _delay_break(self, x: torch.Tensor, io_schema) -> torch.Tensor:
+        """Alter input-output delay by shifting output variables."""
         x_neg = x.clone()
         T = x.shape[0]
-        n_vars = x.shape[-1]
 
-        # Select shift amount (avoid future leakage: only shift backward)
+        # Get output indices
+        output_indices = torch.tensor(io_schema.output_indices, dtype=torch.long, device=self.device)
+
+        # Select shift amount
         shift = random.randint(self.delay_shift_range[0], self.delay_shift_range[1])
 
         if shift == 0:
             shift = random.choice([-2, -1, 1, 2])  # Force non-zero shift
 
-        # Apply shift to output variables (second half)
-        n_inputs = n_vars // 2
+        # Extract output variables
+        y = x[:, output_indices].clone()
 
+        # Apply shift with padding
         if shift > 0:
-            # Delay outputs more (shift forward, but pad to avoid leakage)
-            x_neg[:-shift, n_inputs:] = x[shift:, n_inputs:].clone()
-            x_neg[-shift:, n_inputs:] = x[-1:, n_inputs:].clone()  # Repeat last
+            # Delay outputs more
+            if shift < T:
+                x_neg[shift:, output_indices] = y[:-shift]
+                # Pad beginning with first value
+                x_neg[:shift, output_indices] = y[0:1].expand(shift, -1)
+            else:
+                x_neg[:, output_indices] = y[0:1].expand(T, -1)
         elif shift < 0:
-            # Reduce delay (shift backward)
-            x_neg[-shift:, n_inputs:] = x[:shift, n_inputs:].clone()
-            x_neg[:-shift, n_inputs:] = x[0:1, n_inputs:].clone()  # Repeat first
+            # Reduce delay
+            abs_shift = abs(shift)
+            if abs_shift < T:
+                x_neg[:-abs_shift, output_indices] = y[abs_shift:]
+                # Pad end with last value
+                x_neg[-abs_shift:, output_indices] = y[-1:].expand(abs_shift, -1)
+            else:
+                x_neg[:, output_indices] = y[-1:].expand(T, -1)
 
         return x_neg
 
@@ -236,7 +262,8 @@ class RegimeDelayNegativeAugmentor(nn.Module):
         self,
         x: torch.Tensor,
         regime_models: List[StateSpaceModel],
-        regime_prob: Optional[torch.Tensor]
+        regime_prob: Optional[torch.Tensor],
+        io_schema
     ) -> torch.Tensor:
         """Use wrong regime's dynamics."""
         if len(regime_models) < 2:
@@ -258,18 +285,19 @@ class RegimeDelayNegativeAugmentor(nn.Module):
         x_neg = x.clone()
         ss_model = regime_models[wrong_regime]
 
-        n_vars = x.shape[-1]
-        n_inputs = n_vars // 2
+        # Get indices
+        input_indices = torch.tensor(io_schema.input_indices, dtype=torch.long, device=self.device)
+        output_indices = torch.tensor(io_schema.output_indices, dtype=torch.long, device=self.device)
 
-        u = x[:, :n_inputs].cpu().numpy()
+        u = x[:, input_indices].cpu().numpy()
 
         try:
             # Simulate with wrong regime
             y_wrong = self._simulate_regime(ss_model, u)
-            x_neg[:, n_inputs:] = torch.from_numpy(y_wrong).float().to(self.device)
+            x_neg[:, output_indices] = torch.from_numpy(y_wrong).float().to(self.device)
         except:
             # Fallback
-            x_neg[:, n_inputs:] += torch.randn_like(x_neg[:, n_inputs:]) * 0.5
+            x_neg[:, output_indices] += torch.randn_like(x_neg[:, output_indices]) * 0.5
 
         return x_neg
 

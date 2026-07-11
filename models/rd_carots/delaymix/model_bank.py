@@ -251,7 +251,47 @@ class RegimeDelayModelBank(nn.Module):
 
         self.is_initialized = is_initialized
 
-        if regime_models_state is not None:
-            # Reconstruct regime models (simplified - full reconstruction would need Markov params)
-            # For now, just mark as initialized if models were saved
-            pass
+        if regime_models_state is not None and is_initialized:
+            # Reconstruct regime models from saved state
+            import time
+            from .markov_recovery import MarkovParameters
+
+            for r, rm_dict in enumerate(regime_models_state):
+                if rm_dict is not None:
+                    # Reconstruct state space model
+                    A = np.array(rm_dict['A'])
+                    B = np.array(rm_dict['B'])
+                    C = np.array(rm_dict['C'])
+                    n_states = rm_dict['n_states']
+
+                    # Compute eigenvalues for StateSpaceModel
+                    eigenvalues = np.linalg.eigvals(A)
+                    is_stable = np.max(np.abs(eigenvalues)) <= 1.0
+
+                    ss_model = StateSpaceModel(
+                        A=A, B=B, C=C,
+                        n_states=n_states,
+                        eigenvalues=eigenvalues,
+                        is_stable=is_stable
+                    )
+
+                    # Reconstruct Markov parameters (simplified)
+                    effective_delay = rm_dict.get('effective_delay', r)
+                    markov_params = MarkovParameters(
+                        markov_sequence=np.zeros((self.max_lag, self.n_outputs, self.n_inputs)),
+                        effective_delay=effective_delay,
+                        weight=rm_dict.get('weight', 1.0 / self.n_regimes)
+                    )
+
+                    # Create regime model
+                    self.regime_models[r] = RegimeModel(
+                        regime_id=r,
+                        state_space=ss_model,
+                        markov_params=markov_params,
+                        weight=rm_dict.get('weight', 1.0),
+                        n_samples=rm_dict.get('n_samples', 0),
+                        last_update_time=time.time(),
+                        confidence=rm_dict.get('confidence', 1.0)
+                    )
+
+            print(f"Restored {len([rm for rm in self.regime_models if rm is not None])} regime models from checkpoint")

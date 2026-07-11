@@ -138,65 +138,108 @@ class RDCAROTS(nn.Module):
         x: torch.Tensor,
         positive_augment: bool = True,
         negative_augment: bool = True,
-        return_regime_info: bool = False
+        return_regime_info: bool = False,
+        return_batch_metadata: bool = False
     ):
         """
-        Forward pass.
+        Forward pass with explicit batch structure.
+
+        Batch structure:
+        G1: Original samples (B)
+        G2: Positive augmented from G1 (B)
+        G3: Negative augmented from G1 (B)
+        G4: Negative augmented from G2 (B)
+        Total: 4B
 
         Args:
             x: Input windows (batch_size, window_size, n_variables)
             positive_augment: Apply positive augmentation
             negative_augment: Apply negative augmentation
             return_regime_info: Return regime inference results
+            return_batch_metadata: Return batch structure metadata
 
         Returns:
-            embeddings: (B_total, embedding_dim) or dict if return_regime_info=True
+            embeddings or dict with embeddings + metadata
         """
-        x_all = x
+        batch_size = x.shape[0]
+        x_all = x.clone()
+
+        # Batch metadata
+        group_ids = torch.zeros(batch_size, dtype=torch.long, device=x.device)  # G1
+        source_indices = torch.arange(batch_size, device=x.device)
+        is_positive = torch.zeros(batch_size, dtype=torch.bool, device=x.device)
+        is_negative = torch.zeros(batch_size, dtype=torch.bool, device=x.device)
 
         # Get regime information if model bank is initialized
         regime_probs = None
         regime_models = []
         if self.model_bank.is_initialized:
-            # Split into inputs/outputs for regime inference
-            n_vars = x.shape[-1]
-            n_inputs = n_vars // 2  # Simplified
-            outputs = x[:, :, n_inputs:]
-            inputs = x[:, :, :n_inputs]
+            # Split using IO schema
+            from .io_schema import split_io_variables
+            u, y = split_io_variables(x.cpu().numpy(), self.io_schema)
+            u_torch = torch.from_numpy(u).to(self.device)
+            y_torch = torch.from_numpy(y).to(self.device)
 
             # Regime inference
-            regime_results = self.model_bank.predict(outputs, inputs)
+            regime_results = self.model_bank.predict(y_torch, u_torch)
             regime_probs = regime_results.get('regime_probs')
             regime_models = self.model_bank.get_state_space_models()
 
-        # Apply positive augmentation
+        # Apply positive augmentation (G2)
         if positive_augment and self.cfg_rdcarots.POSITIVE_AUGMENTOR.ENABLE:
             if len(regime_models) > 0:
                 positive_samples = self.positive_augmentor(
-                    x_all, regime_models, regime_probs
+                    x, regime_models, regime_probs
                 )
             else:
-                # Fallback: use CAROTS-style
-                positive_samples = x_all + torch.randn_like(x_all) * 0.1
+                positive_samples = x + torch.randn_like(x) * 0.1
 
             x_all = torch.cat([x_all, positive_samples], dim=0)
 
-        # Apply negative augmentation
+            # Update metadata
+            group_ids = torch.cat([group_ids, torch.ones(batch_size, dtype=torch.long, device=x.device)])
+            source_indices = torch.cat([source_indices, torch.arange(batch_size, device=x.device)])
+            is_positive = torch.cat([is_positive, torch.ones(batch_size, dtype=torch.bool, device=x.device)])
+            is_negative = torch.cat([is_negative, torch.zeros(batch_size, dtype=torch.bool, device=x.device)])
+
+        # Apply negative augmentation (G3, G4)
         if negative_augment and self.cfg_rdcarots.NEGATIVE_AUGMENTOR.ENABLE:
+            # G3: from G1
             if len(regime_models) > 0:
-                negative_samples = self.negative_augmentor(
-                    x_all,
+                negative_from_g1 = self.negative_augmentor(
+                    x,
                     regime_models,
                     regime_probs,
                     self.causal_discoverer.causality_mtx
                 )
             else:
-                # Fallback: use CAROTS-style
                 from models.carots.modeling_negative_augmentor import NegativeAugmentor
-                neg_aug_fallback = NegativeAugmentor(self.cfg).to(self.device)
-                negative_samples = neg_aug_fallback(x_all, self.causal_discoverer.causality_mtx)
+                neg_aug = NegativeAugmentor(self.cfg).to(self.device)
+                negative_from_g1 = neg_aug(x, self.causal_discoverer.causality_mtx)
 
-            x_all = torch.cat([x_all, negative_samples], dim=0)
+            x_all = torch.cat([x_all, negative_from_g1], dim=0)
+            group_ids = torch.cat([group_ids, torch.full((batch_size,), 2, dtype=torch.long, device=x.device)])
+            source_indices = torch.cat([source_indices, torch.arange(batch_size, device=x.device)])
+            is_positive = torch.cat([is_positive, torch.zeros(batch_size, dtype=torch.bool, device=x.device)])
+            is_negative = torch.cat([is_negative, torch.ones(batch_size, dtype=torch.bool, device=x.device)])
+
+            # G4: from G2 if positive augmentation was applied
+            if positive_augment and self.cfg_rdcarots.POSITIVE_AUGMENTOR.ENABLE:
+                if len(regime_models) > 0:
+                    negative_from_g2 = self.negative_augmentor(
+                        positive_samples,
+                        regime_models,
+                        regime_probs,
+                        self.causal_discoverer.causality_mtx
+                    )
+                else:
+                    negative_from_g2 = neg_aug(positive_samples, self.causal_discoverer.causality_mtx)
+
+                x_all = torch.cat([x_all, negative_from_g2], dim=0)
+                group_ids = torch.cat([group_ids, torch.full((batch_size,), 3, dtype=torch.long, device=x.device)])
+                source_indices = torch.cat([source_indices, torch.arange(batch_size, device=x.device)])
+                is_positive = torch.cat([is_positive, torch.zeros(batch_size, dtype=torch.bool, device=x.device)])
+                is_negative = torch.cat([is_negative, torch.ones(batch_size, dtype=torch.bool, device=x.device)])
 
         # Encode
         if self.cfg_rdcarots.ENCODER_ARCH == 'GATv2':
@@ -209,12 +252,22 @@ class RDCAROTS(nn.Module):
         # Project
         out = self.projector(enc_out)
 
-        if return_regime_info:
-            return {
-                'embeddings': out,
-                'regime_probs': regime_probs,
-                'regime_results': regime_results if self.model_bank.is_initialized else None
-            }
+        if return_batch_metadata or return_regime_info:
+            result = {'embeddings': out}
+            if return_batch_metadata:
+                result.update({
+                    'group_ids': group_ids,
+                    'source_indices': source_indices,
+                    'is_positive': is_positive,
+                    'is_negative': is_negative,
+                    'batch_size': batch_size
+                })
+            if return_regime_info:
+                result.update({
+                    'regime_probs': regime_probs,
+                    'regime_results': regime_results if self.model_bank.is_initialized else None
+                })
+            return result
         else:
             return out
 

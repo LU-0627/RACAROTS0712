@@ -1,26 +1,38 @@
 #!/usr/bin/env bash
-# Run experiments with all seeds
-
 set -euo pipefail
 
+echo "=== Running All Seeds ==="
+
 OUTPUT_ROOT="${OUTPUT_ROOT:-results/rd_carots}"
+DATA_ROOT="${DATA_ROOT:-data}"
 
-echo "Running experiments with seeds 0, 1, 2..."
-
-for SEED in 0 1 2; do
-    echo "Seed $SEED..."
-
-    export SEED=$SEED
-
-    bash scripts/server/07_run_synthetic_full.sh || echo "Synthetic seed $SEED failed"
-
-    if [ -d "$DATA_ROOT/SWaT" ]; then
-        bash scripts/server/08_run_swat.sh || echo "SWaT seed $SEED failed"
-    fi
-
-    if [ -d "$DATA_ROOT/WADI" ]; then
-        bash scripts/server/09_run_wadi.sh || echo "WADI seed $SEED failed"
-    fi
+for dataset in synthetic swat wadi; do
+    for seed in 0 1 2; do
+        echo "Running $dataset seed $seed"
+        
+        config_file="configs/rd_carots/${dataset}.yaml"
+        
+        if [ ! -f "$config_file" ]; then
+            echo "Config $config_file not found, skipping"
+            continue
+        fi
+        
+        python run_rd_carots.py \
+            --config "$config_file" \
+            --mode train \
+            --model RDCAROTS \
+            --seed $seed \
+            --data-root "$DATA_ROOT" \
+            --output-root "$OUTPUT_ROOT/${dataset}/seed_$seed" || { echo "Failed $dataset seed $seed"; exit 1; }
+        
+        python run_rd_carots.py \
+            --config "$config_file" \
+            --mode frozen \
+            --model RDCAROTS \
+            --seed $seed \
+            --data-root "$DATA_ROOT" \
+            --output-root "$OUTPUT_ROOT/${dataset}/seed_$seed" || { echo "Failed $dataset seed $seed"; exit 1; }
+    done
 done
 
-echo "✓ Multi-seed experiments complete."
+echo "All seeds complete"

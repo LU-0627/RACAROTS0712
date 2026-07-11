@@ -1,24 +1,23 @@
 #!/usr/bin/env bash
-# Resume training from checkpoint
-
 set -euo pipefail
 
+echo "=== Resume Experiment ==="
+
 if [ $# -lt 2 ]; then
-    echo "Usage: $0 <config_yaml> <checkpoint_path>"
+    echo "Usage: $0 <config_path> <checkpoint_dir>"
     exit 1
 fi
 
-CONFIG="$1"
-CHECKPOINT="$2"
+CONFIG_PATH="$1"
+CHECKPOINT_DIR="$2"
+DATA_ROOT="${DATA_ROOT:-data}"
 
-PYTHON_BIN="${PYTHON_BIN:-python}"
-
-echo "Resuming training from $CHECKPOINT..."
-
-$PYTHON_BIN run_rd_carots.py \
-    --config "$CONFIG" \
+python run_rd_carots.py \
+    --config "$CONFIG_PATH" \
     --mode train \
-    --checkpoint "$CHECKPOINT" \
-    --resume
+    --resume \
+    --checkpoint "$CHECKPOINT_DIR/checkpoint_best.pth" \
+    --data-root "$DATA_ROOT" \
+    --output-root "$CHECKPOINT_DIR" || { echo "Resume failed"; exit 1; }
 
-echo "✓ Training resumed and completed."
+echo "Experiment resumed"

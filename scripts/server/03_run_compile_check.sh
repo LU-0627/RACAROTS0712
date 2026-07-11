@@ -1,20 +1,10 @@
 #!/usr/bin/env bash
-# Run Python compile check
-
 set -euo pipefail
 
-PROJECT_ROOT="${PROJECT_ROOT:-.}"
+echo "=== Python Compilation Check ==="
 
-echo "Running Python syntax check..."
+python -m compileall -q models/rd_carots || { echo "Compilation failed"; exit 1; }
+python -m compileall -q datasets || { echo "Compilation failed"; exit 1; }
+python -m compileall -q config.py || { echo "Compilation failed"; exit 1; }
 
-python -m compileall "$PROJECT_ROOT/models/rd_carots" || {
-    echo "ERROR: Compilation failed"
-    exit 1
-}
-
-python -m compileall "$PROJECT_ROOT/datasets" || {
-    echo "ERROR: Compilation failed"
-    exit 1
-}
-
-echo "✓ Syntax check passed."
+echo "Compilation check passed"

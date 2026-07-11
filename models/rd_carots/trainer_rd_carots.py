@@ -26,6 +26,9 @@ class RDCAROTSTrainer(Trainer):
 
         self.cfg_rdcarots = cfg.RDCAROTS
 
+        # Device handling
+        self.device = next(model.parameters()).device
+
         # Load IO schema
         io_schema_path = Path(cfg.RDCAROTS.IO_SCHEMA_PATH)
         self.io_schema = load_io_schema(io_schema_path, n_variables=cfg.DATA.N_VAR)
@@ -40,6 +43,9 @@ class RDCAROTSTrainer(Trainer):
 
         # Online update tracking
         self.update_log = []
+
+        # SIM_THRESHOLD scheduling (mutable state)
+        self.current_sim_threshold = cfg.RDCAROTS.SIM_THRESHOLD
 
     def train(self):
         """Main training loop."""
@@ -66,9 +72,9 @@ class RDCAROTSTrainer(Trainer):
         metric_best = self.cfg.TRAIN.METRIC_BEST
 
         for cur_epoch in tqdm(range(self.cfg.SOLVER.START_EPOCH, self.cfg.SOLVER.MAX_EPOCH)):
-            # Update similarity threshold schedule
+            # Update similarity threshold schedule (mutable state variable)
             if self.cfg_rdcarots.SIM_THRESHOLD_SCHEDULE:
-                self.cfg_rdcarots.SIM_THRESHOLD = (
+                self.current_sim_threshold = (
                     self.cfg_rdcarots.SIM_THRESHOLD_START +
                     (self.cfg_rdcarots.SIM_THRESHOLD_END - self.cfg_rdcarots.SIM_THRESHOLD_START) *
                     cur_epoch / (self.cfg.SOLVER.MAX_EPOCH - 1)
@@ -195,7 +201,7 @@ class RDCAROTSTrainer(Trainer):
     def train_step(self, inputs):
         """Single training step."""
         outputs_dict = {}
-        inputs_batch, _ = prepare_inputs(inputs)
+        inputs_batch, _ = prepare_inputs(inputs, device=self.device)
         inputs_batch = inputs_batch.to(self.device)
 
         # Split into u and x for model bank update
@@ -211,23 +217,33 @@ class RDCAROTSTrainer(Trainer):
                 u_torch[i, t_mid, :].unsqueeze(0)
             )
 
-        # Forward pass with augmentation
+        # Forward pass with augmentation and metadata
         output_dict = self.model(
             inputs_batch,
             positive_augment=True,
             negative_augment=True,
-            return_regime_info=True
+            return_regime_info=True,
+            return_batch_metadata=True
         )
 
         embeddings = output_dict['embeddings']
         regime_results = output_dict.get('regime_results')
         regime_probs = regime_results.get('regime_probs') if regime_results is not None else None
+        batch_metadata = {
+            'group_ids': output_dict.get('group_ids'),
+            'source_indices': output_dict.get('source_indices'),
+            'is_positive': output_dict.get('is_positive'),
+            'is_negative': output_dict.get('is_negative'),
+            'batch_size': output_dict.get('batch_size')
+        }
 
-        # Compute loss
+        # Compute loss with metadata
         loss = regime_conditioned_soc_loss(
             embeddings,
             regime_probs,
-            self.cfg
+            self.cfg,
+            batch_metadata=batch_metadata,
+            current_sim_threshold=self.current_sim_threshold
         )
 
         # Backward
