@@ -203,19 +203,19 @@ def mode_collect_results(args, cfg):
 
 def main():
     args = parse_args()
-    cfg = load_config(args)
+    cfg, device = load_config(args)
 
     # Dispatch to mode
     if args.mode == 'generate_synthetic':
         mode_generate_synthetic(args, cfg)
     elif args.mode == 'train':
-        mode_train(args, cfg)
+        mode_train(args, cfg, device)
     elif args.mode == 'test':
-        mode_test(args, cfg)
+        mode_test(args, cfg, device)
     elif args.mode == 'frozen':
-        mode_frozen(args, cfg)
+        mode_frozen(args, cfg, device)
     elif args.mode == 'guarded_online':
-        mode_guarded_online(args, cfg)
+        mode_guarded_online(args, cfg, device)
     elif args.mode == 'collect_results':
         mode_collect_results(args, cfg)
     else:

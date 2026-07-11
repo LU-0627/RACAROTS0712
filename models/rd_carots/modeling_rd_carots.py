@@ -38,7 +38,20 @@ class RDCAROTS(nn.Module):
         self.cfg = cfg
         self.cfg_data = cfg.DATA
         self.cfg_rdcarots = cfg.RDCAROTS
-        self.device = device or torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        # Device must be explicitly provided, no auto-detection
+        if device is None:
+            raise ValueError("Device must be explicitly specified. Do not rely on auto-detection.")
+        self.device = device
+
+        # Load IO schema
+        from pathlib import Path
+        io_schema_path = Path(cfg.RDCAROTS.IO_SCHEMA_PATH)
+        self.io_schema = load_io_schema(io_schema_path, n_variables=cfg.DATA.N_VAR)
+
+        # Convert indices to tensors on device
+        self.input_indices = torch.tensor(self.io_schema.input_indices, dtype=torch.long, device=self.device)
+        self.output_indices = torch.tensor(self.io_schema.output_indices, dtype=torch.long, device=self.device)
 
         # Encoder (same as CAROTS)
         self.encoder = self._init_encoder()
@@ -271,8 +284,12 @@ class RDCAROTS(nn.Module):
         else:
             return out
 
-    def update_model_bank(self, outputs: torch.Tensor, inputs: torch.Tensor):
+    def update_model_bank(self, x: torch.Tensor):
         """Update moment statistics and potentially refit models."""
+        # Split using IO schema
+        outputs = x[:, :, self.output_indices]
+        inputs = x[:, :, self.input_indices]
+
         self.model_bank.update_moments(outputs, inputs)
 
         # Check if should trigger CP decomposition
