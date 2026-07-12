@@ -1,0 +1,26 @@
+# RDCAROTS GPU服务器部署静态验证报告
+
+## 执行的静态检查
+1. Python编译检查 - models/build.py, run_rd_carots.py
+2. compileall检查 - models/rd_carots, datasets
+3. Bash语法检查 - scripts/server/*.sh
+4. grep检查 - n_vars//2, auto CUDA detection, CAROTS predictor
+
+## 静态检查结果
+见下方命令输出
+
+## 尚未运行的功能验证
+- 所有训练运行
+- 所有pytest测试
+- GPU smoke test
+- Checkpoint保存加载
+- 4分量评分输出
+- Frozen模式验证
+- Guarded online标签泄漏检查
+- 状态空间递推验证
+- 完整实验流程
+
+## 下一步
+上传到GPU服务器后执行：
+bash scripts/server/00_check_environment.sh
+bash scripts/server/06_run_synthetic_gpu_smoke.sh
