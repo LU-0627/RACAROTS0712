@@ -31,7 +31,7 @@ class RegimeDelayPositiveAugmentor(nn.Module):
     def __init__(self, cfg, device: Optional[torch.device] = None):
         super().__init__()
         self.cfg = cfg
-        self.cfg_augmentor = cfg.RDCAROTS.REGIME_DELAY_POSITIVE_AUGMENTOR
+        self.cfg_augmentor = cfg.RDCAROTS.POSITIVE_AUGMENTOR
         self.device = device or torch.device('cpu')
         self.noise_level = self.cfg_augmentor.NOISE_LEVEL
 
@@ -132,7 +132,7 @@ class RegimeDelayNegativeAugmentor(nn.Module):
     def __init__(self, cfg, device: Optional[torch.device] = None):
         super().__init__()
         self.cfg = cfg
-        self.cfg_augmentor = cfg.RDCAROTS.REGIME_DELAY_NEGATIVE_AUGMENTOR
+        self.cfg_augmentor = cfg.RDCAROTS.NEGATIVE_AUGMENTOR
         self.device = device or torch.device('cpu')
 
         # Strategy weights

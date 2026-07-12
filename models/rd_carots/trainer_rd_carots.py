@@ -282,11 +282,20 @@ class RDCAROTSTrainer(Trainer):
         """Train CUTS_Plus causal discoverer."""
         from models.carots.trainer_cuts_plus import CUTS_PLUS_Trainer
 
-        cfg_causal = self.cfg.CUTS_PLUS
+        # Create a mutable copy of the config
+        cfg_causal = self.cfg.clone()
+        cfg_causal.defrost()
         cfg_causal.TRAIN.CHECKPOINT_DIR = self.causal_discoverer_checkpoint_dir
-        cfg_causal.RESULT_DIR = self.causal_discoverer_checkpoint_dir
+        cfg_causal.CUTS_PLUS.RESULT_DIR = self.causal_discoverer_checkpoint_dir
 
-        trainer_causal = CUTS_PLUS_Trainer(self.cfg, self.model.causal_discoverer)
+        # Ensure consistent batch size for causal discoverer training
+        # Use the same batch size as the main model to avoid dimension mismatch
+        cfg_causal.TRAIN.BATCH_SIZE = self.cfg.TRAIN.BATCH_SIZE
+        cfg_causal.VAL.BATCH_SIZE = self.cfg.VAL.BATCH_SIZE
+
+        cfg_causal.freeze()
+
+        trainer_causal = CUTS_PLUS_Trainer(cfg_causal, self.model.causal_discoverer)
         trainer_causal.train()
 
         self.model.causal_discoverer.load_state_dict(trainer_causal.model.state_dict())

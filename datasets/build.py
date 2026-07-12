@@ -353,3 +353,44 @@ class VARSegLoader(TSDataset):
 
         test = np.load(os.path.join(self.data_dir, f'test_{self.anomaly_type}_outliers_factor{self.factor}.npy'))
         test_labels = np.load(os.path.join(self.data_dir, f"test_{self.anomaly_type}_outliers_factor{self.factor}_labels.npy"))
+
+        if self.train_ratio < 1.0:
+            train, val, train_labels, val_labels = self._split_train_val(train, train_labels)
+        else:
+            val, val_labels = test.copy(), test_labels.copy()
+
+        return train, val, test, train_labels, val_labels, test_labels
+
+
+def build_dataset(cfg, split):
+    """
+    Build dataset based on cfg.DATA.NAME
+
+    Args:
+        cfg: Configuration object
+        split: 'train', 'val', or 'test'
+
+    Returns:
+        Dataset instance
+    """
+    dataset_name = cfg.DATA.NAME
+
+    # Map dataset names to loader classes
+    if dataset_name == 'PSM':
+        return PSMSegLoader(cfg, split)
+    elif dataset_name.startswith('MSL_'):
+        return MSLSegLoader(cfg, split)
+    elif dataset_name.startswith('SMD_'):
+        return SMDSegLoader(cfg, split)
+    elif dataset_name == 'SWaT':
+        return SWaTSegLoader(cfg, split)
+    elif dataset_name == 'WADI':
+        return WADISegLoader(cfg, split)
+    elif dataset_name == 'synthetic_regime_delay':
+        return SyntheticRegimeDelayLoader(cfg, split)
+    elif dataset_name.startswith('Lorenz96_'):
+        return Lorenz96SegLoader(cfg, split)
+    elif dataset_name.startswith('VAR_'):
+        return VARSegLoader(cfg, split)
+    else:
+        raise ValueError(f"Unknown dataset: {dataset_name}")

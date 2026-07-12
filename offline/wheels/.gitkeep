@@ -1,6 +1,0 @@
-Placeholder for offline wheels.
-
-To populate this directory:
-1. On a Linux machine with internet access
-2. Run: bash scripts/prepare_linux_wheelhouse.sh
-3. Copy all .whl files to this directory before creating server package

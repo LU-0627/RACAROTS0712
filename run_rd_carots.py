@@ -90,6 +90,9 @@ def load_config(args):
     else:
         cfg.VISIBLE_DEVICES = None
 
+    # Propagate the full device string so build_model() can find it
+    cfg.DEVICE = args.device
+
     # Set workers
     cfg.DATA_LOADER.NUM_WORKERS = args.num_workers
 

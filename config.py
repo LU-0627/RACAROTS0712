@@ -9,6 +9,8 @@ _C.SEED = 0
 # number of gpus per node
 _C.NUM_GPUS = 4
 _C.VISIBLE_DEVICES = 0
+# Device string for model placement (e.g. "cuda:0", "cpu")
+_C.DEVICE = "cuda:0"
 
 # Automatic path resolution
 # PROJECT_ROOT: auto-detected as the directory containing this config.py
@@ -119,6 +121,9 @@ _C.RDCAROTS.TEMPERATURE = 0.1
 _C.RDCAROTS.PROTOTYPE_UPDATE_MOMENTUM = 0.1
 _C.RDCAROTS.PROTOTYPE_MIN_CONFIDENCE = 0.7
 
+_C.RDCAROTS.METRIC_NAMES = ("Loss",)
+_C.RDCAROTS.LOSS_NAMES = ("Loss",)
+
 _C.RDCAROTS.SCORER = CN()
 _C.RDCAROTS.SCORER.LAMBDA_EMBED = 1.0
 _C.RDCAROTS.SCORER.LAMBDA_PRED = 0.5
@@ -135,6 +140,7 @@ _C.SYNTHETIC.N_TEST = 5000
 
 
 _C.VAL = CN()
+_C.VAL.ENABLE = True
 _C.VAL.SPLIT = 'val'
 _C.VAL.BATCH_SIZE = 256
 _C.VAL.SHUFFLE = False
