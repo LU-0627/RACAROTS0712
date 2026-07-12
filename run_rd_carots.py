@@ -42,29 +42,49 @@ def parse_args():
 
 
 def load_config(args):
-    """Load configuration with environment variable expansion."""
+    """Load configuration with automatic path resolution."""
     cfg = get_cfg_defaults()
 
     # Load from file
     cfg.merge_from_file(args.config)
 
-    # Apply environment variable expansion
+    # Automatic path resolution
+    project_root = Path(__file__).parent.resolve()
+
+    # Data directory: priority order
+    # 1. Command line argument --data-root
+    # 2. Environment variable DATA_ROOT
+    # 3. Default: {project_root}/data/
     if args.data_root:
         cfg.DATA.BASE_DIR = args.data_root
     elif 'DATA_ROOT' in os.environ:
         cfg.DATA.BASE_DIR = os.environ['DATA_ROOT']
+    else:
+        # Convert relative path to absolute based on project root
+        if not os.path.isabs(cfg.DATA.BASE_DIR):
+            cfg.DATA.BASE_DIR = str(project_root / cfg.DATA.BASE_DIR)
 
+    # Output directory: priority order
+    # 1. Command line argument --output-root
+    # 2. Environment variable OUTPUT_ROOT
+    # 3. Default: {project_root}/results/
     if args.output_root:
         cfg.RESULT_DIR = args.output_root
         cfg.TRAIN.CHECKPOINT_DIR = os.path.join(args.output_root, 'checkpoints')
     elif 'OUTPUT_ROOT' in os.environ:
         cfg.RESULT_DIR = os.environ['OUTPUT_ROOT']
         cfg.TRAIN.CHECKPOINT_DIR = os.path.join(os.environ['OUTPUT_ROOT'], 'checkpoints')
+    else:
+        # Convert relative path to absolute based on project root
+        if not os.path.isabs(cfg.RESULT_DIR):
+            cfg.RESULT_DIR = str(project_root / cfg.RESULT_DIR)
+        if not os.path.isabs(cfg.TRAIN.CHECKPOINT_DIR):
+            cfg.TRAIN.CHECKPOINT_DIR = str(project_root / cfg.TRAIN.CHECKPOINT_DIR)
 
     # Set seed
     cfg.SEED = args.seed
 
-    # Set device
+    # Set device (GPU index or CPU)
     if args.device.startswith('cuda'):
         cfg.VISIBLE_DEVICES = int(args.device.split(':')[1]) if ':' in args.device else 0
     else:
@@ -77,8 +97,15 @@ def load_config(args):
     cfg.MODEL = cfg.get('MODEL', {})
     cfg.MODEL.NAME = args.model
 
-    # Freeze
+    # Freeze configuration
     cfg.freeze()
+
+    # Print configuration summary
+    print(f"Project Root: {project_root}")
+    print(f"Data Directory: {cfg.DATA.BASE_DIR}")
+    print(f"Output Directory: {cfg.RESULT_DIR}")
+    print(f"GPU Device: cuda:{cfg.VISIBLE_DEVICES}" if cfg.VISIBLE_DEVICES is not None else "Device: CPU")
+    print("-" * 80)
 
     return cfg
 
@@ -203,19 +230,19 @@ def mode_collect_results(args, cfg):
 
 def main():
     args = parse_args()
-    cfg, device = load_config(args)
+    cfg = load_config(args)
 
     # Dispatch to mode
     if args.mode == 'generate_synthetic':
         mode_generate_synthetic(args, cfg)
     elif args.mode == 'train':
-        mode_train(args, cfg, device)
+        mode_train(args, cfg)
     elif args.mode == 'test':
-        mode_test(args, cfg, device)
+        mode_test(args, cfg)
     elif args.mode == 'frozen':
-        mode_frozen(args, cfg, device)
+        mode_frozen(args, cfg)
     elif args.mode == 'guarded_online':
-        mode_guarded_online(args, cfg, device)
+        mode_guarded_online(args, cfg)
     elif args.mode == 'collect_results':
         mode_collect_results(args, cfg)
     else:

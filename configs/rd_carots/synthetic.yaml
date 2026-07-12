@@ -1,6 +1,7 @@
 SEED: 0
 NUM_GPUS: 1
 VISIBLE_DEVICES: 0
+# Relative paths will be automatically resolved based on project root
 RESULT_DIR: 'results/rd_carots/synthetic'
 
 DATA_LOADER:
@@ -9,6 +10,7 @@ DATA_LOADER:
   DROP_LAST: True
 
 DATA:
+  # Relative path: will be resolved to {project_root}/data/
   BASE_DIR: 'data'
   NAME: 'synthetic_regime_delay'
   SCALE: 'standard'
@@ -25,6 +27,7 @@ TRAIN:
   SHUFFLE: True
   DROP_LAST: True
   SPLIT: 'train'
+  # Relative path: will be resolved to {project_root}/results/rd_carots/synthetic/checkpoints/
   CHECKPOINT_DIR: 'results/rd_carots/synthetic/checkpoints'
   RESUME: ''
   EVAL_PERIOD: 5
@@ -36,42 +39,43 @@ MODEL:
   NAME: 'RDCAROTS'
 
 RDCAROTS:
+  # Relative path: will be resolved to {project_root}/configs/io_schema/synthetic_regime_delay.yaml
   IO_SCHEMA_PATH: 'configs/io_schema/synthetic_regime_delay.yaml'
   TEST_MODE: 'frozen'
   N_INPUTS: 20
   N_OUTPUTS: 30
   ENCODER_ARCH: 'lstm'
-  
+
   PROJECTOR:
     INPUT_DIM: 512
     HIDDEN_DIM: 512
     OUTPUT_DIM: 512
-  
+
   DELAYMIX:
     N_REGIMES: 3
     MAX_LAG: 20
     FORGETTING_FACTOR: 0.99
     BOOTSTRAP_WINDOWS: 200
     UPDATE_INTERVAL: 500
-  
+
   POSITIVE_AUGMENTOR:
     ENABLE: True
     NOISE_LEVEL: 0.05
-  
+
   NEGATIVE_AUGMENTOR:
     ENABLE: True
     RELATION_BREAK_PROB: 0.33
     DELAY_BREAK_PROB: 0.33
     CROSS_REGIME_PROB: 0.34
     DELAY_SHIFT_RANGE: [-3, 3]
-  
+
   LOSS:
     USE_REGIME_WEIGHTING: True
-  
+
   SIM_THRESHOLD: 0.5
   TEMPERATURE: 0.07
   PROTOTYPE_UPDATE_MOMENTUM: 0.1
-  
+
   SCORER:
     LAMBDA_EMBED: 1.0
     LAMBDA_PRED: 0.5
@@ -89,4 +93,5 @@ LSTM:
 
 CUTS_PLUS:
   N_NODES: 50
+  # Relative path: will be resolved to {project_root}/results/rd_carots/synthetic/cuts_plus/
   RESULT_DIR: 'results/rd_carots/synthetic/cuts_plus'

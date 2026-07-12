@@ -1,4 +1,6 @@
 from yacs.config import CfgNode as CN
+import os
+from pathlib import Path
 
 
 _C = CN()
@@ -7,6 +9,11 @@ _C.SEED = 0
 # number of gpus per node
 _C.NUM_GPUS = 4
 _C.VISIBLE_DEVICES = 0
+
+# Automatic path resolution
+# PROJECT_ROOT: auto-detected as the directory containing this config.py
+_C.PROJECT_ROOT = str(Path(__file__).parent.resolve())
+# RESULT_DIR: relative to PROJECT_ROOT
 _C.RESULT_DIR = 'results/'
 
 
@@ -20,6 +27,8 @@ _C.DATA_LOADER.DROP_LAST = True
 
 
 _C.DATA = CN()
+# BASE_DIR: defaults to 'data/' relative to PROJECT_ROOT
+# Can be overridden by environment variable DATA_ROOT or command line argument
 _C.DATA.BASE_DIR = 'data/'
 _C.DATA.NAME = 'SWaT'
 _C.DATA.SCALE = "standard"
